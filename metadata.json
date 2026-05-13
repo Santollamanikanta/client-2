@@ -1,0 +1,8 @@
+{
+  "name": "Quick Seva",
+  "description": "Hyperlocal on-demand household services platform connecting homeowners with trusted nearby workers for cleaning, plumbing, electrical, and more.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}
