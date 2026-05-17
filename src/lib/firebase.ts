@@ -1,31 +1,30 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getMessaging } from 'firebase/messaging';
-import firebaseConfig from '../../firebase-applet-config.json';
+import { initializeFirestore } from 'firebase/firestore';
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyCvuXoBZJZ3Lb9hf6u1JgK2y2HaxGcRwHo',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'cleanease-496416.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'cleanease-496416',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'cleanease-496416.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1064601634345',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:1064601634345:web:a8d1a201f6d151ba19fe38'
+};
+
+const configDatabaseId = "ai-studio-70fd6d7d-d835-4637-9307-b8e78af7df5a";
+const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || configDatabaseId;
+
+// Initialize Firebase
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
-export const messaging = typeof window !== 'undefined' ? getMessaging(app) : null;
 
-// Validation check as per guidelines
-import { doc, getDocFromServer } from 'firebase/firestore';
+// Use initializeFirestore with settings to handle potential network issues in the preview environment
+export const db = initializeFirestore(app, { 
+  experimentalForceLongPolling: true,
+  ignoreUndefinedProperties: true
+}, databaseId);
 
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    console.log('Firebase connection verified');
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
-    }
-  }
-}
-
-if (typeof window !== 'undefined') {
-  testConnection();
-}
+export const isFirebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
 
 export enum OperationType {
   CREATE = 'create',
@@ -36,7 +35,7 @@ export enum OperationType {
   WRITE = 'write',
 }
 
-interface FirestoreErrorInfo {
+export interface FirestoreErrorInfo {
   error: string;
   operationType: OperationType;
   path: string | null;

@@ -1,33 +1,34 @@
 {
   "entities": {
-    "User": {
-      "title": "User",
-      "description": "User profile information",
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user information and roles.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
         "displayName": { "type": "string" },
         "email": { "type": "string" },
         "photoURL": { "type": "string" },
-        "role": { "type": "string", "enum": ["homeowner", "provider"] },
+        "role": { "type": "string", "enum": ["homeowner", "provider", "admin"] },
         "phoneNumber": { "type": "string" },
         "address": { "type": "string" },
-        "location": { "type": "object" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
         "rating": { "type": "number" },
-        "skills": { "type": "array" },
+        "skills": { "type": "array", "items": { "type": "string" } },
         "isOnline": { "type": "boolean" },
-        "isPro": { "type": "boolean" },
-        "proJoinedAt": { "type": "string", "format": "date-time" },
-        "fcmTokens": { "type": "array" },
-        "lastTokenUpdate": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "email", "role"]
+      "required": ["uid", "displayName", "email", "role", "createdAt"]
     },
     "Service": {
       "title": "Service",
-      "description": "Available household services",
+      "description": "Available cleaning and maintenance services.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -35,46 +36,43 @@
         "description": { "type": "string" },
         "category": { "type": "string" },
         "basePrice": { "type": "number" },
-        "iconName": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      }
+        "iconName": { "type": "string" }
+      },
+      "required": ["id", "name", "category", "basePrice"]
     },
     "Booking": {
       "title": "Booking",
-      "description": "Service booking request",
+      "description": "Service requests and their lifecycle.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "customerId": { "type": "string" },
         "providerId": { "type": "string" },
         "serviceId": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "assigned", "in-progress", "completed", "cancelled"] },
+        "serviceName": { "type": "string" },
+        "category": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "assigned", "arriving", "at-location", "in-progress", "completed", "cancelled"] },
         "scheduledAt": { "type": "string", "format": "date-time" },
-        "location": { "type": "object" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "address": { "type": "string" }
+          }
+        },
         "totalPrice": { "type": "number" },
-        "paymentId": { "type": "string" },
+        "paymentMethod": { "type": "string", "enum": ["online", "cash"] },
+        "paymentStatus": { "type": "string", "enum": ["pending", "paid"] },
         "notes": { "type": "string" },
-        "isProBooking": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "Notification": {
-      "title": "Notification",
-      "description": "User notification",
-      "type": "object",
-      "properties": {
-        "title": { "type": "string" },
-        "body": { "type": "string" },
-        "type": { "type": "string", "enum": ["info", "success", "alert", "message"] },
-        "read": { "type": "boolean" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "link": { "type": "string" }
-      }
+      },
+      "required": ["id", "customerId", "serviceId", "status", "scheduledAt", "location", "totalPrice", "createdAt", "updatedAt"]
     },
     "ChatMessage": {
-      "title": "ChatMessage",
-      "description": "Chat messages between user and provider",
+      "title": "Chat Message",
+      "description": "Messages between customer and provider for a booking.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -82,14 +80,44 @@
         "senderId": { "type": "string" },
         "text": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
-      }
+      },
+      "required": ["id", "bookingId", "senderId", "text", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notifications.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "title", "message", "read", "createdAt"]
     }
   },
   "firestore": {
-    "users": { "schema": "User", "description": "User profiles" },
-    "users/{userId}/notifications": { "schema": "Notification", "description": "User notifications" },
-    "services": { "schema": "Service", "description": "Service catalog" },
-    "bookings": { "schema": "Booking", "description": "Service bookings" },
-    "bookings/{bookingId}/messages": { "schema": "ChatMessage", "description": "Chat messages for a specific booking" }
+    "profiles/{uid}": {
+      "schema": "UserProfile",
+      "description": "User profile data."
+    },
+    "services/{serviceId}": {
+      "schema": "Service",
+      "description": "Available services."
+    },
+    "bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Booking records."
+    },
+    "messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Messages between users."
+    },
+    "notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User notifications."
+    }
   }
 }

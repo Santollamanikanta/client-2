@@ -18,6 +18,16 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   center = { lat: 17.3850, lng: 78.4867 }, // Default Hyderabad
   markers = [] 
 }) => {
+  const [userPos, setUserPos] = React.useState<{lat: number, lng: number} | null>(null);
+
+  React.useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => console.error("MapDisplay geolocation error:", err)
+    );
+  }, []);
+
   if (!hasValidKey) {
     return (
       <div className="w-full h-[400px] bg-natural-surface rounded-[40px] flex items-center justify-center border border-dashed border-natural-border p-8 text-center">
@@ -47,6 +57,11 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
               <Pin background="#FF6B6B" borderColor="#8B2F31" glyphColor="#fff" />
             </AdvancedMarker>
           ))}
+          {userPos && (
+            <AdvancedMarker position={userPos} title="Your Location">
+               <div className="w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg ring-4 ring-blue-500/20" />
+            </AdvancedMarker>
+          )}
         </Map>
       </div>
     </APIProvider>

@@ -18,7 +18,7 @@ const RoleSelection = () => {
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4">
       <div className="max-w-4xl w-full">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">How will you use Quick Seva?</h1>
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">How will you use CleanEase?</h1>
           <p className="text-gray-600">Choose your path to get started.</p>
         </div>
 

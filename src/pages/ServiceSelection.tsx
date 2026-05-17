@@ -1,53 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db } from '../lib/firebase';
+import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { Service } from '../types';
 import { notifyProvidersInArea, notifyAdmin } from '../hooks/useNotifications';
-import { ChevronLeft, Info, Star, ShieldCheck, Clock, MapPin, IndianRupee, X } from 'lucide-react';
+import { ChevronLeft, Info, Star, ShieldCheck, Clock, MapPin, IndianRupee, X, CreditCard, Banknote, Edit3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import AddressAutocomplete from '../components/AddressAutocomplete';
 
-// Mock Services Data
 const MOCK_SERVICES: Record<string, Service[]> = {
   cleaning: [
-    { id: 'c1', name: 'Full Home Cleaning', category: 'cleaning', basePrice: 2499, description: 'Complete deep cleaning of all rooms including kitchen and bathrooms.', iconName: 'broom' },
-    { id: 'c2', name: 'Deep Kitchen Degreasing', category: 'cleaning', basePrice: 1299, description: 'Professional removal of oil stains and chimney cleaning.', iconName: 'broom' },
+    { id: 'c1', name: 'House Cleaning Package', category: 'cleaning', basePrice: 199, description: 'Basic mopping, sweeping and dusting for your home.', iconName: 'broom' },
+    { id: 'c2', name: 'Kitchen Deep Cleaning', category: 'cleaning', basePrice: 149, description: 'Exhaustive cleaning of tiles, cabinets and surfaces.', iconName: 'broom' },
   ],
-  repairs: [
-    { id: 'r1', name: 'AC Unit Repair', category: 'repairs', basePrice: 499, description: 'General servicing and filter cleaning of single AC unit.', iconName: 'bolt' },
-    { id: 'r2', name: 'Geyser Fixing', category: 'repairs', basePrice: 350, description: 'Addressing heating or leakage issues in geysers.', iconName: 'bolt' },
+  mopping: [
+    { id: 'm1', name: 'Standard Mopping', category: 'mopping', basePrice: 49, description: 'Professional wet mopping of all floors.', iconName: 'broom' },
   ],
-  plumbing: [
-    { id: 'p1', name: 'Pipe Leak Fix', category: 'plumbing', basePrice: 299, description: 'Standard fixing of minor bathroom or kitchen pipe leaks.', iconName: 'plumber' },
-    { id: 'p2', name: 'Toilet Repair', category: 'plumbing', basePrice: 450, description: 'Fixing flush or clogging issues in standard toilets.', iconName: 'plumber' },
-  ],
-  cooking: [
-    { id: 'ck1', name: 'Weekly Tiffin Service', category: 'cooking', basePrice: 1500, description: 'Daily home-cooked meal delivery for 1 person.', iconName: 'tiffin' },
-    { id: 'ck2', name: 'One-time Party Cook', category: 'cooking', basePrice: 1000, description: 'Hire a chef to prepare dinner for up to 6 guests at home.', iconName: 'tiffin' },
+  sweeping: [
+    { id: 'sw1', name: 'Full Sweeping', category: 'sweeping', basePrice: 59, description: 'Complete dry sweeping of the premises.', iconName: 'broom' },
   ],
   dusting: [
-    { id: 'd1', name: 'Furniture Dusting', category: 'dusting', basePrice: 400, description: 'Complete dusting of all furniture and surfaces.', iconName: 'dust' },
-    { id: 'd2', name: 'Cabinet Cleaning', category: 'dusting', basePrice: 600, description: 'Internal and external cleaning of kitchen and room cabinets.', iconName: 'dust' },
+    { id: 'd1', name: 'Detailed Dusting', category: 'dusting', basePrice: 39, description: 'Detailed dusting of furniture and electronics.', iconName: 'dust' },
+  ],
+  fan: [
+    { id: 'f1', name: 'Fan Deep Cleaning', category: 'fan', basePrice: 29, description: 'Ceiling and table fan deep cleaning.', iconName: 'bolt' },
+  ],
+  wardrobe: [
+    { id: 'w1', name: 'Wardrobe Organization', category: 'wardrobe', basePrice: 39, description: 'Internal organization and dusting of wardrobes.', iconName: 'dust' },
   ],
   childcare: [
-    { id: 'cc1', name: 'Day Care (4h)', category: 'childcare', basePrice: 1200, description: 'Verified child care for 4 hours at your home.', iconName: 'baby' },
-    { id: 'cc2', name: 'Evening Sitter', category: 'childcare', basePrice: 800, description: 'Professional child sitter for evening hours.', iconName: 'baby' },
+    { id: 'cc1', name: 'Verified Child Care', category: 'childcare', basePrice: 499, description: 'Verified professional child care at your home.', iconName: 'baby' },
   ],
-  caretaker: [
-    { id: 'ct1', name: 'Senior Care', category: 'caretaker', basePrice: 1500, description: 'Compassionate assistance for senior citizens.', iconName: 'heart' },
-    { id: 'ct2', name: 'Patient Support', category: 'caretaker', basePrice: 2000, description: 'Basic medical and physical support for recovering patients.', iconName: 'heart' },
-  ]
+  kitchen: [
+    { id: 'k1', name: 'Kitchen Cleaning', category: 'kitchen', basePrice: 99, description: 'Standard kitchen cleaning and organization.', iconName: 'broom' },
+  ],
+  cooler: [
+    { id: 'cl1', name: 'Cooler Cleaning', category: 'cooler', basePrice: 79, description: 'Water change and internal pad cleaning.', iconName: 'bolt' },
+  ],
+  door: [
+    { id: 'dr1', name: 'Door Cleaning', category: 'door', basePrice: 29, description: 'Polish and dust removal from all room doors.', iconName: 'broom' },
+  ],
 };
 
 const CATEGORIES_INFO: Record<string, { name: string, icon: string }> = {
-  cleaning: { name: 'Deep Cleaning', icon: '🧹' },
-  repairs: { name: 'Electric Repairs', icon: '⚡' },
-  plumbing: { name: 'Plumbing Works', icon: '🔧' },
-  cooking: { name: 'Cooking & Tiffin', icon: '🍱' },
+  cleaning: { name: 'House Cleaning', icon: '🧹' },
+  mopping: { name: 'Mopping', icon: '✨' },
+  sweeping: { name: 'Sweeping', icon: '🧹' },
   dusting: { name: 'Dusting', icon: '✨' },
+  fan: { name: 'Fan Cleaning', icon: '⚡' },
+  wardrobe: { name: 'Wardrobe', icon: '🚪' },
   childcare: { name: 'Child Care', icon: '👶' },
-  caretaker: { name: 'Care Taker', icon: '🤝' },
+  kitchen: { name: 'Kitchen', icon: '🍱' },
+  cooler: { name: 'Cooler', icon: '❄️' },
+  door: { name: 'Door', icon: '🚪' },
 };
 
 const ServiceSelection = () => {
@@ -57,74 +63,200 @@ const ServiceSelection = () => {
   const { user, profile } = useAuth();
   const [bookingLoading, setBookingLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState<Service | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'online' | 'cash'>('online');
   const [services, setServices] = useState<Service[]>([]);
-  const [successBooking, setSuccessBooking] = useState<{ id: string, name: string, price: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [bookingLocation, setBookingLocation] = useState({ 
+    address: profile?.address || 'Hyderabad, India', 
+    lat: 17.3850, 
+    lng: 78.4867 
+  });
+  const [showAddressEdit, setShowAddressEdit] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().split('T')[0]);
+  const [scheduledTime, setScheduledTime] = useState('09:00');
+
+  const TIME_SLOTS = Array.from({ length: 15 }, (_, i) => {
+    const hour = i + 6;
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour > 12 ? hour - 12 : hour;
+    return {
+      value: `${hour.toString().padStart(2, '0')}:00`,
+      label: `${displayHour}:00 ${period}`
+    };
+  });
+
+  useEffect(() => {
+    if (profile?.address) {
+      setBookingLocation(prev => ({ ...prev, address: profile.address || prev.address }));
+    }
+  }, [profile]);
 
   useEffect(() => {
     const fetchServices = async () => {
-      try {
-        const q = query(collection(db, 'services'), where('category', '==', category));
-        const snap = await getDocs(q);
-        setServices(snap.docs.map(d => ({ id: d.id, ...d.data() } as Service)));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.LIST, 'services');
-      }
+      setLoading(true);
+      
+      const timeout = new Promise<Service[]>((resolve) => 
+        setTimeout(() => resolve(MOCK_SERVICES[category] || []), 500)
+      );
+
+      const fetchTask = (async () => {
+        try {
+          const q = query(collection(db, 'services'), where('category', '==', category));
+          const snapshot = await getDocs(q);
+          
+          if (snapshot.empty) {
+            return MOCK_SERVICES[category] || [];
+          } else {
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Service[];
+          }
+        } catch (err) {
+          return MOCK_SERVICES[category] || [];
+        }
+      })();
+
+      const results = await Promise.race([fetchTask, timeout]);
+      setServices(results);
+      setLoading(false);
     };
     fetchServices();
   }, [category]);
+
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
 
   const handleBooking = async (service: Service) => {
     if (!user) return;
     setBookingLoading(true);
     try {
-      // 1. Process Mock Payment
-      const payRes = await fetch('/api/payment/mock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: service.basePrice, bookingId: service.id }),
-      });
-      const payData = await payRes.json();
-      if (!payData.success) throw new Error('Payment failed');
-
-      // 2. Create Booking
       const basePrice = service.basePrice;
       const discount = profile?.isPro ? Math.round(basePrice * 0.2) : 0;
       const finalPrice = basePrice - discount;
 
-      const docRef = await addDoc(collection(db, 'bookings'), {
+      const createBookingData = (extra: any) => ({
         customerId: user.uid,
         serviceId: service.id,
         serviceName: service.name,
-        status: 'pending',
-        scheduledAt: new Date(Date.now() + 3600000).toISOString(),
-        location: { lat: 17.3850, lng: 78.4867, address: 'Hyderabad, India' },
+        category: service.category,
+        status: 'pending-approval',
+        scheduledAt: new Date(`${scheduledDate}T${scheduledTime}:00`).toISOString(),
+        location: { 
+          lat: bookingLocation.lat, 
+          lng: bookingLocation.lng, 
+          address: bookingLocation.address 
+        },
         totalPrice: finalPrice,
-        paymentId: payData.transactionId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        isProBooking: profile?.isPro || false
+        isProBooking: profile?.isPro || false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        ...extra
       });
 
-      // Notify relevant providers
-      await notifyProvidersInArea(
-        category, 
-        `New ${service.name} Request`, 
-        `A new job is available in your area for ₹${service.basePrice}`,
-        { bookingId: docRef.id }
-      );
+      if (paymentMethod === 'online') {
+        const isLoaded = await loadRazorpay();
+        if (!isLoaded) {
+          alert('Razorpay SDK failed to load. Are you online?');
+          return;
+        }
 
-      // Notify Owner/Admin
-      await notifyAdmin(
-        `New Booking: ₹${service.basePrice}`,
-        `A new ${service.name} request was just paid for.`,
-        { bookingId: docRef.id }
-      );
+        const orderRes = await fetch('/api/payment/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            amount: finalPrice,
+            receipt: `rcpt_${Date.now()}`
+          }),
+        });
 
-      setSuccessBooking({
-        id: docRef.id,
-        name: service.name,
-        price: finalPrice
-      });
+        if (!orderRes.ok) throw new Error('Payment service error');
+
+        const orderData = await orderRes.json();
+        if (!orderData.success) throw new Error('Failed to create payment order');
+
+        const options = {
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+          amount: orderData.amount,
+          currency: "INR",
+          name: "CleanEase",
+          description: `Booking for ${service.name}`,
+          order_id: orderData.orderId,
+          handler: async (response: any) => {
+            const verifyRes = await fetch('/api/payment/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(response),
+            });
+
+            if (!verifyRes.ok) throw new Error('Payment verification failed');
+
+            const verifyData = await verifyRes.json();
+            
+            if (verifyData.success) {
+              const docRef = await addDoc(collection(db, 'bookings'), createBookingData({
+                  paymentMethod: 'online',
+                  paymentStatus: 'paid',
+                  paymentId: response.razorpay_payment_id,
+                  orderId: response.razorpay_order_id,
+              }));
+
+              await notifyAdmin(`New Booking: ₹${finalPrice}`, `A new ${service.name} request was paid: ${response.razorpay_payment_id}`);
+              await notifyProvidersInArea(service.category, `New ${service.name} Job`, `A new request is available near you for ₹${finalPrice}`, { bookingId: docRef.id });
+              
+              navigate(`/booking-confirmation/${docRef.id}`);
+            }
+          },
+          prefill: {
+            name: profile?.displayName || user.displayName || 'User',
+            email: user.email,
+            contact: profile?.phoneNumber || ""
+          },
+          theme: { color: "#5A7D6C" }
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+      } else {
+        // Cash Flow
+        // Create an optimistic reference or use a timeout to prevent hanging
+        const bookingData = createBookingData({
+            paymentMethod: 'cash',
+            paymentStatus: 'pending',
+        });
+
+        // Fire notifications in background - DO NOT AWAIT
+        notifyAdmin(`New Cash Booking: ₹${finalPrice}`, `A new ${service.name} request (Cash) was created by ${user.uid}`).catch(console.error);
+        
+        try {
+          // Set a race between the write and a 3s timeout
+          const writeTask = addDoc(collection(db, 'bookings'), bookingData);
+          const timeout = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('timeout')), 3000)
+          );
+
+          const docRef = await Promise.race([writeTask, timeout]) as any;
+          
+          // Fire area notification now we have ID
+          notifyProvidersInArea(service.category, `New ${service.name} Job (Cash)`, `A new cash request is available near you for ₹${finalPrice}`, { bookingId: docRef.id }).catch(console.error);
+          
+          navigate(`/booking-confirmation/${docRef.id}`);
+        } catch (err: any) {
+          if (err.message === 'timeout') {
+            console.warn("Booking write timed out but might succeed later. Proceeding optimistically.");
+            // Generate a local ID or just take them to a history page if we can't confirm
+            // For now, let's just alert a slightly better message or try one more time fast
+            alert('Booking is taking longer than expected. Please check your history in a moment.');
+            navigate('/history');
+          } else {
+            throw err;
+          }
+        }
+      }
     } catch (err) {
       console.error(err);
       alert('Booking failed. Please try again.');
@@ -145,8 +277,8 @@ const ServiceSelection = () => {
       </button>
 
       <div className="mb-12">
-        <h1 className="text-5xl font-serif font-bold text-natural-text mb-4">{CATEGORIES_INFO[category]?.name || category} Services</h1>
-        <p className="text-natural-muted font-medium">Choose the best service for your household.</p>
+        <h1 className="text-5xl font-serif font-bold text-natural-text mb-4">CleanEase Hyderabad</h1>
+        <p className="text-natural-muted font-medium italic">Premium household services at your doorstep.</p>
       </div>
 
       <div className="mb-12 overflow-x-auto pb-4 scrollbar-hide">
@@ -169,12 +301,22 @@ const ServiceSelection = () => {
       </div>
 
       <div className="space-y-8">
-        {services.map((service) => (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+            <p className="text-natural-muted font-bold uppercase tracking-widest text-xs">Curating services for you...</p>
+          </div>
+        ) : services.length === 0 ? (
+          <div className="text-center py-20 bg-natural-surface rounded-[40px] border border-dashed border-natural-border">
+            <p className="text-natural-muted font-medium mb-4">No services available in this category yet.</p>
+            <button onClick={() => navigate('/home')} className="text-primary font-bold hover:underline">Explore other categories</button>
+          </div>
+        ) : services.map((service) => (
           <motion.div 
             key={service.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="card-natural p-10 hover:shadow-xl transition-all flex flex-col md:flex-row gap-10 items-start"
+            className="bg-white p-10 rounded-[32px] border border-natural-border shadow-soft hover:shadow-xl transition-all flex flex-col md:flex-row gap-10 items-start"
           >
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-4">
@@ -212,7 +354,7 @@ const ServiceSelection = () => {
               <button 
                 onClick={() => setShowConfirm(service)}
                 disabled={bookingLoading}
-                className="w-full py-4 bg-primary text-white rounded-2xl font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all disabled:opacity-50 cursor-pointer"
+                className="w-full py-4 bg-primary text-white rounded-2xl font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all disabled:opacity-50 cursor-pointer text-sm"
               >
                 Book Now
               </button>
@@ -253,7 +395,7 @@ const ServiceSelection = () => {
                   <h2 className="text-3xl font-serif font-bold text-natural-text mb-2">Confirm Booking</h2>
                   <p className="text-natural-muted font-medium">Safe and secure direct booking</p>
                 </div>
-                <button onClick={() => setShowConfirm(null)} className="p-2 hover:bg-natural-surface rounded-full">
+                <button onClick={() => setShowConfirm(null)} className="p-2 hover:bg-natural-surface rounded-full cursor-pointer">
                   <X className="w-6 h-6 text-natural-muted" />
                 </button>
               </div>
@@ -276,6 +418,31 @@ const ServiceSelection = () => {
                 </div>
 
                 <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-bold text-natural-muted uppercase tracking-widest block">Preferred Date</label>
+                       <input 
+                        type="date" 
+                        min={new Date().toISOString().split('T')[0]}
+                        value={scheduledDate}
+                        onChange={(e) => setScheduledDate(e.target.value)}
+                        className="w-full px-4 py-3 bg-white border border-natural-border rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                       />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-bold text-natural-muted uppercase tracking-widest block">Time (6AM - 8PM)</label>
+                       <select 
+                        value={scheduledTime}
+                        onChange={(e) => setScheduledTime(e.target.value)}
+                        className="w-full px-4 py-3 bg-white border border-natural-border rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                       >
+                         {TIME_SLOTS.map(slot => (
+                           <option key={slot.value} value={slot.value}>{slot.label}</option>
+                         ))}
+                       </select>
+                    </div>
+                  </div>
+
                   <div className="flex justify-between items-center text-xs">
                     <div className="flex items-center gap-2 text-natural-muted font-medium">
                       <Clock className="w-4 h-4 text-primary" />
@@ -284,12 +451,33 @@ const ServiceSelection = () => {
                     <span className="font-bold text-natural-text">45-60 mins</span>
                   </div>
 
-                  <div className="flex justify-between items-center text-xs">
-                    <div className="flex items-center gap-2 text-natural-muted font-medium">
+                  <div className="flex justify-between items-start text-xs">
+                    <div className="flex items-center gap-2 text-natural-muted font-medium pt-1">
                       <MapPin className="w-4 h-4 text-primary" />
                       <span>Service Location</span>
                     </div>
-                    <span className="font-bold text-natural-text">Your Registered Address</span>
+                    <div className="text-right flex-1 ml-4 text-xs">
+                      {showAddressEdit ? (
+                        <div className="mt-2 text-xs">
+                           <AddressAutocomplete 
+                              defaultValue={bookingLocation.address}
+                              onAddressSelect={(address, lat, lng) => {
+                                setBookingLocation({ address, lat, lng });
+                                setShowAddressEdit(false);
+                              }}
+                              className="!py-2 !pl-10 !text-[10px]"
+                           />
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setShowAddressEdit(true)}
+                          className="flex items-center gap-2 font-bold text-natural-text hover:text-primary transition-colors text-right ml-auto cursor-pointer"
+                        >
+                          <span className="line-clamp-2">{bookingLocation.address}</span>
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="pt-4 border-t border-natural-border/50 flex justify-between items-end">
@@ -313,83 +501,62 @@ const ServiceSelection = () => {
               </div>
 
               <div className="mb-8">
-                <p className="text-xs text-natural-muted leading-relaxed font-medium italic">
-                  * By proceeding, you agree to our service terms. A verified professional will be assigned within 15 minutes of payment.
+                <h4 className="text-xs font-bold text-natural-muted uppercase tracking-widest mb-4">Payment Method</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => setPaymentMethod('online')}
+                    className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all cursor-pointer ${
+                      paymentMethod === 'online'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-natural-border text-natural-muted hover:border-primary/50'
+                    }`}
+                  >
+                    <CreditCard className="w-6 h-6" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Online (UPI/Card)</span>
+                  </button>
+                  <button
+                    onClick={() => setPaymentMethod('cash')}
+                    className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all cursor-pointer ${
+                      paymentMethod === 'cash'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-natural-border text-natural-muted hover:border-primary/50'
+                    }`}
+                  >
+                    <Banknote className="w-6 h-6" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Cash Pay</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="mb-8">
+                <p className="text-[10px] text-natural-muted leading-relaxed font-medium italic">
+                  * By proceeding, you agree to our service terms. A verified professional will be assigned within 15 minutes of {paymentMethod === 'online' ? 'payment' : 'booking'}.
                 </p>
               </div>
 
               <button 
                 onClick={() => handleBooking(showConfirm)}
                 disabled={bookingLoading}
-                className="w-full py-5 bg-primary text-white rounded-[24px] font-bold shadow-2xl shadow-primary/30 flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+                className="w-full py-5 bg-primary text-white rounded-[24px] font-bold shadow-2xl shadow-primary/30 flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer text-sm"
               >
                 {bookingLoading ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <>
-                    <ShieldCheck className="w-5 h-5" />
-                    Confirm & Pay
+                    {paymentMethod === 'online' ? (
+                      <>
+                        <CreditCard className="w-5 h-5" />
+                        Confirm & Pay Online
+                      </>
+                    ) : (
+                      <>
+                        <Banknote className="w-5 h-5" />
+                        Confirm & Pay Cash
+                      </>
+                    )}
                   </>
                 )}
               </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {successBooking && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-natural-text/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl p-10 text-center"
-            >
-              <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <ShieldCheck className="w-10 h-10 text-emerald-600" />
-              </div>
-              
-              <h2 className="text-3xl font-serif font-bold text-natural-text mb-2">Booking Confirmed!</h2>
-              <p className="text-natural-muted font-medium mb-8">Your professional is being assigned.</p>
-
-              <div className="bg-natural-surface p-6 rounded-3xl mb-8 text-left space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-natural-muted font-medium">Service</span>
-                  <span className="font-bold text-natural-text">{successBooking.name}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-natural-muted font-medium">Amount Paid</span>
-                  <span className="font-bold text-natural-text flex items-center gap-1">
-                    <IndianRupee className="w-3.5 h-3.5" /> {successBooking.price}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-natural-muted font-medium">Est. Arrival</span>
-                  <span className="font-bold text-emerald-600">45-60 mins</span>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <button 
-                  onClick={() => navigate(`/booking/${successBooking.id}`)}
-                  className="w-full py-4 bg-primary text-white rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all cursor-pointer"
-                >
-                  View Booking Details
-                </button>
-                <button 
-                  onClick={() => setSuccessBooking(null)}
-                  className="w-full py-4 bg-white border border-natural-border text-natural-text rounded-2xl font-bold hover:bg-natural-surface transition-all cursor-pointer"
-                >
-                  Continue Browsing
-                </button>
-              </div>
             </motion.div>
           </div>
         )}

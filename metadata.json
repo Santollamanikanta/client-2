@@ -1,8 +1,10 @@
 {
-  "name": "Quick Seva",
-  "description": "Hyperlocal on-demand household services platform connecting homeowners with trusted nearby workers for cleaning, plumbing, electrical, and more.",
+  "name": "CleanEase",
+  "description": "Hyderabad's premium home cleaning and care services platform. Book professional cleaning, childcare, and household maintenance with ease.",
   "requestFramePermissions": [
     "geolocation"
   ],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

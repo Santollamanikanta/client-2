@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Shield, CheckCircle2, Zap, Star, ArrowRight, IndianRupee } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
 const ProMembership = () => {
@@ -19,11 +19,12 @@ const ProMembership = () => {
 
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
+      await updateDoc(doc(db, 'profiles', user.uid), {
         isPro: true,
         proJoinedAt: new Date().toISOString()
       });
-      alert('Welcome to Quick Seva Pro! Your 20% discount is now active.');
+      
+      alert('Welcome to CleanEase Pro! Your 20% discount is now active.');
       navigate('/home');
     } catch (err) {
       console.error(err);
@@ -41,7 +42,7 @@ const ProMembership = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-natural-bg pb-24">
+    <div className="min-h-screen bg-natural-bg pb-24 text-sm">
       {/* Hero */}
       <section className="relative pt-32 pb-20 overflow-hidden">
         <div className="absolute top-0 right-0 w-1/2 h-full bg-primary/5 rounded-l-[120px] -z-10" />
@@ -54,7 +55,7 @@ const ProMembership = () => {
               <Shield className="w-4 h-4" />
               <span className="text-[10px] font-bold uppercase tracking-widest">Exclusive Membership</span>
             </div>
-            <h1 className="text-6xl lg:text-7xl font-serif font-bold text-natural-text mb-6">Quick Seva <span className="text-primary italic">Pro</span></h1>
+            <h1 className="text-6xl lg:text-7xl font-serif font-bold text-natural-text mb-6">CleanEase <span className="text-primary italic">Pro</span></h1>
             <p className="text-lg text-natural-muted max-w-2xl mx-auto font-medium mb-12">
               Elevate your home management experience with unlimited savings and priority care.
             </p>
@@ -64,7 +65,7 @@ const ProMembership = () => {
             <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-secondary text-white px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg">
               Most Popular
             </div>
-            <div className="text-white mb-8 border-b border-white/10 pb-8">
+            <div className="text-white mb-8 border-b border-white/10 pb-8 text-sm">
               <div className="flex items-center justify-center gap-1 mb-2">
                 <span className="text-2xl font-bold opacity-60">₹</span>
                 <span className="text-6xl font-bold">299</span>
@@ -85,7 +86,7 @@ const ProMembership = () => {
             <button 
               onClick={handleJoinPro}
               disabled={loading || profile?.isPro}
-              className="w-full py-5 bg-primary text-white rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50"
+              className="w-full py-5 bg-primary text-white rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50 text-sm"
             >
               {profile?.isPro ? 'Already a Pro member' : 'Try for ₹299/mo'}
               <ArrowRight className="w-5 h-5" />

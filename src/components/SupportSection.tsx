@@ -19,11 +19,18 @@ const SupportSection = () => {
             Contact Support
           </a>
           <a 
-            href="tel:+918007842573" 
+            href="tel:+919502337968" 
             className="px-6 py-4 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl text-sm font-bold transition-all flex items-center gap-2"
           >
             <Phone className="w-4 h-4 text-emerald-400" />
-            +91 800-QUICKSEVA
+            +91 95023 37968
+          </a>
+          <a 
+            href="tel:+918790934547" 
+            className="px-6 py-4 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl text-sm font-bold transition-all flex items-center gap-2"
+          >
+            <Phone className="w-4 h-4 text-emerald-400" />
+            +91 87909 34547
           </a>
         </div>
       </div>

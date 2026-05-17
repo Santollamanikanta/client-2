@@ -1,11 +1,13 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
-import { Shield, Clock, IndianRupee, Star, ChevronRight, CheckCircle2, Play, ArrowRight } from 'lucide-react';
+import { Shield, Clock, IndianRupee, Star, ChevronRight, CheckCircle2, Play, ArrowRight, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Footer from '../components/Footer';
 
 import AIVideoDemo from '../components/AIVideoDemo';
+
+import { Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps';
 
 const LandingPage = () => {
   const { signIn, user, profile } = useAuth();
@@ -38,8 +40,8 @@ const LandingPage = () => {
             </div>
             
             <h1 className="text-7xl lg:text-8xl font-serif text-natural-text leading-[0.9] mb-8 font-bold tracking-tighter">
-              The Modern<br />
-              <span className="text-primary">Household</span><br />
+              The <span className="text-primary">CleanEase</span><br />
+              Household<br />
               Standard.
             </h1>
             
@@ -49,21 +51,33 @@ const LandingPage = () => {
 
             <div className="flex flex-wrap gap-6 items-center">
               {user ? (
-                <Link 
-                  to={profile?.role === 'provider' ? '/dashboard' : '/home'}
-                  className="px-10 py-5 bg-natural-text text-white rounded-2xl font-bold shadow-2xl shadow-natural-text/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
-                >
-                  Dashboard
-                  <ArrowRight className="w-5 h-5" />
-                </Link>
+                <div className="flex gap-4">
+                  <Link 
+                    to={profile?.role === 'provider' ? '/dashboard' : '/home'}
+                    className="px-10 py-5 bg-natural-text text-white rounded-2xl font-bold shadow-2xl shadow-natural-text/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
+                  >
+                    {profile?.role === 'provider' ? 'Worker Dashboard' : 'Book Now'}
+                    <ArrowRight className="w-5 h-5" />
+                  </Link>
+                  {!profile?.role && (
+                    <Link 
+                      to="/role-selection"
+                      className="px-10 py-5 bg-white text-natural-text border border-natural-border rounded-2xl font-bold shadow-soft hover:bg-natural-surface transition-all flex items-center gap-3"
+                    >
+                      Choose Role
+                    </Link>
+                  )}
+                </div>
               ) : (
-                <button 
-                  onClick={signIn}
-                  className="px-10 py-5 bg-natural-text text-white rounded-2xl font-bold shadow-2xl shadow-natural-text/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 cursor-pointer"
-                >
-                  Get Started
-                  <ArrowRight className="w-5 h-5" />
-                </button>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <button 
+                    onClick={signIn}
+                    className="px-10 py-5 bg-natural-text text-white rounded-2xl font-bold shadow-2xl shadow-natural-text/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 cursor-pointer"
+                  >
+                    Get Started
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
               )}
               
               <button 
@@ -168,7 +182,7 @@ const LandingPage = () => {
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-secondary mb-4">The Process</h2>
-            <h3 className="text-5xl font-serif font-bold text-natural-text">How Quick Seva Works</h3>
+            <h3 className="text-5xl font-serif font-bold text-natural-text">How CleanEase Works</h3>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
@@ -289,6 +303,70 @@ const LandingPage = () => {
               </div>
             </div>
           </div>
+
+          {/* Hyderabad Coverage Section */}
+          <motion.div 
+            initial={{ y: 20, opacity: 0 }}
+            whileInView={{ y: 0, opacity: 1 }}
+            viewport={{ once: true }}
+            className="mt-32 p-8 md:p-16 bg-primary/5 rounded-[60px] border border-primary/10 overflow-hidden relative"
+          >
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              <div>
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-700 text-xs font-bold uppercase tracking-widest rounded-full mb-6">
+                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                  Now Live in Hyderabad
+                </div>
+                <h2 className="text-4xl md:text-5xl font-serif font-bold text-natural-text mb-6">
+                  Complete Service Coverage Across the City
+                </h2>
+                <p className="text-natural-muted font-medium mb-8 leading-relaxed max-w-md">
+                  From Jubilee Hills to Gachibowli, we bring premium home services to your doorstep with guaranteed professional matching.
+                </p>
+                <div className="flex flex-wrap gap-4">
+                   <Link to="/role-selection" className="btn-primary inline-flex items-center gap-3 px-8 group">
+                      Explore Services
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </Link>
+                </div>
+              </div>
+              <div className="relative">
+                <div className="aspect-square bg-white rounded-[40px] shadow-2xl p-4 rotate-3 border border-natural-border relative z-10">
+                  <div className="w-full h-full bg-natural-surface rounded-[32px] flex items-center justify-center overflow-hidden relative">
+                     <Map
+                        defaultCenter={{ lat: 17.4065, lng: 78.4772 }}
+                        defaultZoom={11}
+                        gestureHandling={'none'}
+                        disableDefaultUI={true}
+                        mapId="LANDING_PREVIEW_MAP"
+                        className="w-full h-full"
+                        internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
+                     >
+                        <AdvancedMarker position={{ lat: 17.4399, lng: 78.4484 }}>
+                           <div className="w-8 h-8 bg-white rounded-xl shadow-lg border-2 border-primary flex items-center justify-center animate-bounce">
+                              <MapPin className="w-4 h-4 text-primary" />
+                           </div>
+                        </AdvancedMarker>
+                        <AdvancedMarker position={{ lat: 17.4447, lng: 78.3789 }}>
+                           <div className="w-6 h-6 bg-emerald-500 rounded-lg shadow-lg flex items-center justify-center">
+                              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                           </div>
+                        </AdvancedMarker>
+                     </Map>
+                     <div className="absolute inset-0 bg-gradient-to-t from-white/40 to-transparent pointer-events-none" />
+                     <div className="absolute top-4 right-4 px-3 py-1 bg-white/80 backdrop-blur-sm rounded-full border border-natural-border shadow-sm flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                        <span className="text-[8px] font-bold text-natural-text uppercase tracking-widest">Active Tracking</span>
+                     </div>
+                  </div>
+                </div>
+                <div className="absolute -bottom-6 -left-6 bg-white p-6 rounded-3xl shadow-xl border border-natural-border -rotate-6 hidden md:block z-20">
+                   <p className="text-xs font-bold text-primary mb-1">Response Time</p>
+                   <p className="text-2xl font-serif font-bold text-natural-text">~45 Mins</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 

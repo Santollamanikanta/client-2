@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, orderBy, limit, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { collection, query, where, orderBy, limit, onSnapshot, updateDoc, doc, writeBatch, getDocs } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bell, CheckCircle2, MessageSquare, AlertCircle, Calendar, ChevronRight, MailOpen } from 'lucide-react';
+import { Bell, CheckCircle2, MessageSquare, AlertCircle, ChevronRight, MailOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface Notification {
@@ -13,6 +13,7 @@ interface Notification {
   type: 'info' | 'success' | 'alert' | 'message';
   read: boolean;
   createdAt: string;
+  userId: string;
   link?: string;
 }
 
@@ -24,34 +25,35 @@ const Notifications = () => {
   useEffect(() => {
     if (!user) return;
 
-    // Use a simplified query first to avoid index issues during the demo
     const q = query(
-      collection(db, 'users', user.uid, 'notifications'),
-      limit(20)
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      limit(50) // Limit a bit higher to sort in memory
     );
 
-    const unsub = onSnapshot(q, (snap) => {
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Notification));
-      // Sort in memory for the demo if server sort is missing index
-      docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setNotifications(docs);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (snapshot.empty && loading) {
+         setNotifications([
+          { id: 'welcome', title: 'Welcome to CleanEase', body: 'Start booking verified professionals today!', type: 'success', read: false, createdAt: new Date().toISOString(), userId: user.uid }
+        ]);
+      } else {
+        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Notification[];
+        docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setNotifications(docs);
+      }
       setLoading(false);
-    }, (err) => {
-      console.error(err);
-      // Fallback for initial demo
-      setNotifications([
-        { id: 'welcome', title: 'Welcome to Quick Seva', body: 'Start booking verified professionals today!', type: 'success', read: false, createdAt: new Date().toISOString() }
-      ]);
+    }, (error) => {
+      console.error("Notifications subscription error:", error);
       setLoading(false);
     });
 
-    return () => unsub();
+    return () => unsubscribe();
   }, [user]);
 
   const markAsRead = async (id: string) => {
     if (!user) return;
     try {
-      await updateDoc(doc(db, 'users', user.uid, 'notifications', id), { read: true });
+      await updateDoc(doc(db, 'notifications', id), { read: true });
     } catch (err) {
       console.error(err);
     }
@@ -60,10 +62,17 @@ const Notifications = () => {
   const markAllRead = async () => {
     if (!user) return;
     try {
-      const updates = notifications.filter(n => !n.read).map(n => 
-        updateDoc(doc(db, 'users', user.uid, 'notifications', n.id), { read: true })
+      const q = query(
+        collection(db, 'notifications'),
+        where('userId', '==', user.uid),
+        where('read', '==', false)
       );
-      await Promise.all(updates);
+      const querySnapshot = await getDocs(q);
+      const batch = writeBatch(db);
+      querySnapshot.forEach((d) => {
+        batch.update(doc(db, 'notifications', d.id), { read: true });
+      });
+      await batch.commit();
     } catch (err) {
       console.error(err);
     }

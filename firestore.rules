@@ -1,26 +1,21 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Global Safety Net
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Phase 3: Primitive Definition
+    
+    // --- GLOBAL HELPERS ---
+    
     function isSignedIn() {
       return request.auth != null;
-    }
-
-    function isAdmin() {
-      return isSignedIn() && request.auth.token.email == 'manikanta10516@gmail.com';
     }
 
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    function isAdmin() {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'admin';
     }
 
     function incoming() {
@@ -31,116 +26,71 @@ service cloud.firestore {
       return resource.data;
     }
 
-    // Phase 4: Drafting the "Fortress" Rules
-    
-    // Connection test rule
-    match /test/connection {
-      allow read: if true;
-    }
-    
-    // Validation Helpers
-    function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'role']) 
-        && data.uid is string && data.uid.size() <= 128
-        && data.email is string && data.email.size() <= 256
-        && data.role in ['homeowner', 'provider', 'admin']
-        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100))
-        && (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 20))
-        && (!('isOnline' in data) || data.isOnline is bool)
-        && (!('isPro' in data) || data.isPro is bool)
-        && (!('rating' in data) || (data.rating is number || data.rating == null));
+    // --- VALIDATION HELPERS ---
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'role', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.role in ['homeowner', 'provider', 'admin'];
     }
 
     function isValidBooking(data) {
-      return data.keys().hasAll(['customerId', 'serviceId', 'status', 'location', 'totalPrice', 'createdAt'])
-        && data.customerId == request.auth.uid
-        && data.status == 'pending'
-        && data.totalPrice is number && data.totalPrice >= 0
-        && (data.createdAt == request.time || data.createdAt is timestamp);
+      return data.keys().hasAll(['customerId', 'serviceId', 'status', 'scheduledAt', 'location', 'totalPrice', 'createdAt', 'updatedAt']) &&
+             data.customerId == request.auth.uid &&
+             data.status in ['pending', 'assigned', 'arriving', 'at-location', 'in-progress', 'completed', 'cancelled'] &&
+             data.totalPrice is number && data.totalPrice >= 0;
     }
 
-    function isValidService(data) {
-      return data.keys().hasAll(['name', 'category', 'basePrice'])
-        && data.name is string && data.name.size() <= 100
-        && data.category is string && data.category.size() <= 50
-        && data.basePrice is number && data.basePrice >= 0;
+    // --- RULES ---
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    function isValidNotification(data) {
-      return data.keys().hasAll(['title', 'body', 'type', 'read', 'createdAt'])
-        && data.title is string && data.title.size() <= 200
-        && data.body is string && data.body.size() <= 1000
-        && data.type in ['info', 'success', 'alert', 'message']
-        && data.read is bool;
-    }
-
-    // Collection Rules
-    
-    match /users/{userId} {
-      allow read: if isSignedIn() && (isValidId(userId) || isAdmin());
-      allow list: if isAdmin() || isSignedIn();
-      allow create: if isOwner(userId) && isValidUser(incoming()) && isValidId(userId);
-      allow update: if (isOwner(userId) || isAdmin()) && isValidId(userId)
-        && (incoming().diff(existing()).affectedKeys().hasOnly([
-          'displayName', 'photoURL', 'phoneNumber', 'address', 'location', 
-          'skills', 'isOnline', 'rating', 'fcmTokens', 'lastTokenUpdate', 
-          'updatedAt', 'isPro', 'proJoinedAt'
-        ]))
-        && (isOwner(userId) ? (!incoming().diff(existing()).affectedKeys().hasAny(['role', 'uid', 'email'])) : true);
-      
-      match /notifications/{notificationId} {
-        allow read: if isOwner(userId) && isValidId(notificationId);
-        allow list: if isOwner(userId);
-        allow create: if (isOwner(userId) || isAdmin()) && isValidNotification(incoming()) && isValidId(notificationId);
-        allow update: if isOwner(userId) && isValidId(notificationId) && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
-        allow delete: if isOwner(userId) && isValidId(notificationId);
-      }
+    match /profiles/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(uid) && isValidUserProfile(incoming());
+      allow update: if isOwner(uid) && (
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName', 'phoneNumber', 'address', 'location', 
+          'skills', 'isOnline', 'photoURL', 'updatedAt', 'lat', 'lng', 'isPro', 'proJoinedAt'
+        ])
+      );
     }
 
     match /services/{serviceId} {
-      allow read: if isValidId(serviceId);
-      allow write: if isAdmin() && isValidId(serviceId);
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /bookings/{bookingId} {
-      function canAccessBooking(data) {
-        return isAdmin() || (isSignedIn() && (
-          data.customerId == request.auth.uid || 
-          data.providerId == request.auth.uid ||
-          data.status in ['pending', 'assigned', 'in-progress']
-        ));
-      }
-
-      allow read: if isValidId(bookingId) && canAccessBooking(existing());
-      allow list: if isSignedIn() && (
+      allow read, list: if isSignedIn() && (
         resource.data.customerId == request.auth.uid || 
-        resource.data.providerId == request.auth.uid || 
-        resource.data.status in ['pending', 'assigned', 'in-progress'] ||
-        isAdmin()
+        resource.data.providerId == request.auth.uid ||
+        resource.data.status == 'pending'
       );
-      
-      allow create: if isValidId(bookingId) && ((isSignedIn() && isValidBooking(incoming())) || isAdmin());
-        
-      allow update: if isValidId(bookingId) && (isAdmin() || (isSignedIn() && (
-        // Homeowner actions: Cancel or update notes
-        (existing().customerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'scheduledAt', 'notes', 'updatedAt', 'isProBooking']) && (incoming().updatedAt == request.time || isAdmin())) ||
-        // Provider actions: Accept or update status
-        (
-          // Accept action
-          (existing().status == 'pending' && incoming().providerId == request.auth.uid && incoming().status == 'assigned' && incoming().diff(existing()).affectedKeys().hasOnly(['providerId', 'status', 'updatedAt']) && (incoming().updatedAt == request.time || isAdmin())) ||
-          // Progress action
-          (existing().providerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) && (incoming().updatedAt == request.time || isAdmin()))
-        )
-      )));
-      
-      allow delete: if isValidId(bookingId) && isAdmin();
+      allow create: if isSignedIn() && isValidBooking(incoming());
+      allow update: if isSignedIn() && (
+        (existing().status == 'pending' && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['providerId', 'status', 'updatedAt', 'providerName'])) ||
+        ((resource.data.customerId == request.auth.uid || resource.data.providerId == request.auth.uid) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'paymentStatus', 'paymentId']))
+      );
+    }
 
-      match /messages/{messageId} {
-        allow read: if isValidId(messageId) && canAccessBooking(get(/databases/$(database)/documents/bookings/$(bookingId)).data);
-        allow create: if isValidId(messageId) && canAccessBooking(get(/databases/$(database)/documents/bookings/$(bookingId)).data) 
-          && incoming().senderId == request.auth.uid
-          && (incoming().createdAt == request.time || incoming().createdAt is timestamp);
-      }
+    match /messages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+
+    match /notifications/{notificationId} {
+      allow read, list: if isOwner(resource.data.userId);
+      allow create: if isSignedIn();
+      allow update: if isOwner(resource.data.userId) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['read']);
     }
   }
 }

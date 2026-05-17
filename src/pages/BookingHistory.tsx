@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { Booking } from '../types';
 import { motion } from 'motion/react';
 import { Calendar, CheckCircle2, Clock, XCircle, ArrowRight, IndianRupee, MapPin } from 'lucide-react';
@@ -16,26 +16,23 @@ export default function BookingHistory() {
     if (!user) return;
 
     const field = profile?.role === 'provider' ? 'providerId' : 'customerId';
+    
     const q = query(
       collection(db, 'bookings'),
       where(field, '==', user.uid)
     );
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => {
-        const data = doc.data();
-        const createdAt = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt;
-        return { id: doc.id, ...data, createdAt } as Booking;
-      });
-      docs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[];
+      docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setBookings(docs);
       setLoading(false);
     }, (error) => {
-      console.error(error);
+      console.error("History subscription error:", error);
       setLoading(false);
     });
 
-    return () => unsub();
+    return () => unsubscribe();
   }, [user, profile]);
 
   if (loading) return <div className="h-96 flex items-center justify-center font-bold text-natural-muted">Loading history...</div>;
@@ -53,7 +50,7 @@ export default function BookingHistory() {
             key={booking.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="card-natural p-8 hover:shadow-lg transition-all group"
+            className="bg-white rounded-[32px] border border-natural-border shadow-soft p-8 hover:shadow-lg transition-all group"
           >
             <div className="flex flex-col md:flex-row justify-between gap-6">
               <div className="flex items-start gap-6">
@@ -66,15 +63,15 @@ export default function BookingHistory() {
                 </div>
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xl font-bold text-natural-text">{(booking as any).serviceName || 'Standard Service'}</h3>
+                    <h3 className="text-xl font-bold text-natural-text">{booking.serviceName || 'Standard Service'}</h3>
                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
                       booking.status === 'completed' ? 'bg-emerald-100 text-emerald-600' : 
-                      booking.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-primary text-white'
+                      booking.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-primary text-white text-[9px]'
                     }`}>
                       {booking.status}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
                     <div className="flex items-center gap-2 text-sm text-natural-muted font-medium">
                       <Calendar className="w-4 h-4" />
                       {new Date(booking.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -83,9 +80,14 @@ export default function BookingHistory() {
                       <IndianRupee className="w-4 h-4" />
                       ₹{booking.totalPrice}
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-natural-muted font-medium col-span-2">
+                    <div className="flex items-center gap-2 text-sm text-natural-muted font-medium sm:col-span-2">
                       <MapPin className="w-4 h-4" />
                       {booking.location.address || 'Standard Location'}
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary mt-1">
+                      {booking.paymentMethod === 'cash' ? 'Cash on Service' : 'Paid Online'}
+                      <div className="w-1 h-1 bg-natural-border rounded-full" />
+                      {booking.paymentStatus || 'confirmed'}
                     </div>
                   </div>
                 </div>
@@ -94,7 +96,7 @@ export default function BookingHistory() {
               <div className="flex items-center">
                 <Link 
                   to={`/booking/${booking.id}`}
-                  className="w-full md:w-auto px-6 py-3 bg-natural-surface text-natural-text rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-natural-border transition-all cursor-pointer"
+                  className="w-full md:w-auto px-6 py-3 bg-natural-surface text-natural-text rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-natural-border transition-all cursor-pointer text-xs"
                 >
                   Details <ArrowRight className="w-4 h-4" />
                 </Link>

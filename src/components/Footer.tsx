@@ -10,7 +10,7 @@ const Footer = () => {
           <div className="col-span-1 md:col-span-1">
             <div className="flex items-center gap-2 mb-6">
               <Shield className="w-8 h-8 text-secondary" />
-              <span className="text-2xl font-serif font-bold tracking-tighter">Quick Seva.</span>
+              <span className="text-2xl font-serif font-bold tracking-tighter">CleanEase.</span>
             </div>
             <p className="text-sm text-white/50 leading-relaxed font-medium mb-8">
               Premium hyperlocal services for modern homes. Connecting you with verified experts for every household need.
@@ -35,8 +35,8 @@ const Footer = () => {
             <h4 className="text-xs font-bold uppercase tracking-widest text-secondary mb-8">Quick Links</h4>
             <ul className="space-y-4 text-sm font-medium">
               <li><Link to="/home" className="hover:text-white transition-colors">Find Services</Link></li>
-              <li><Link to="/provider-onboarding" className="hover:text-white transition-colors">Become a Provider</Link></li>
-              <li><Link to="/pro" className="hover:text-white transition-colors font-bold text-primary">Quick Seva Pro</Link></li>
+              <li><Link to="/role-selection" className="hover:text-white transition-colors">Become a Provider</Link></li>
+              <li><Link to="/pro" className="hover:text-white transition-colors font-bold text-primary">CleanEase Pro</Link></li>
               <li><Link to="/profile" className="hover:text-white transition-colors">Help & Support</Link></li>
             </ul>
           </div>
@@ -60,11 +60,14 @@ const Footer = () => {
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-5 h-5 text-secondary shrink-0" />
-                <a href="mailto:support@quickseva.com" className="text-white/60 hover:text-white transition-colors">support@quickseva.com</a>
+                <a href="mailto:support@cleanease.in" className="text-white/60 hover:text-white transition-colors">support@cleanease.in</a>
               </li>
-              <li className="flex items-center gap-3">
+              <li className="flex items-start gap-3">
                 <Phone className="w-5 h-5 text-secondary shrink-0" />
-                <span className="text-white/60">+91 800-QUICKSEVA</span>
+                <div className="flex flex-col gap-1">
+                  <a href="tel:+919502337968" className="text-white/60 hover:text-white transition-colors">+91 95023 37968</a>
+                  <a href="tel:+918790934547" className="text-white/60 hover:text-white transition-colors">+91 87909 34547</a>
+                </div>
               </li>
             </ul>
           </div>
@@ -72,7 +75,7 @@ const Footer = () => {
 
         <div className="pt-8 border-top border-white/5 flex flex-col md:row items-center justify-between gap-6">
           <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">
-            © 2026 Quick Seva Technologies Pvt Ltd. All rights reserved.
+            © 2026 CleanEase Technologies Pvt Ltd. All rights reserved.
           </p>
           <div className="flex gap-8 text-[10px] font-bold uppercase tracking-widest text-white/30">
             <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>

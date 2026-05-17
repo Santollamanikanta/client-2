@@ -1,17 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, onSnapshot, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { collection, query, where, orderBy, limit, getDocs, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { Booking, Service } from '../types';
-import { Search, MapPin, Clock, Star, Droplets, UserCheck, ShieldCheck, ChevronRight, Plus, Zap, ChefHat, Hammer } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Search, Droplets, ChevronRight, Plus, Zap, ChefHat, Wrench, Sparkles, Heart, Clock, ShoppingBag, Wind, Construction, Baby } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import MapDisplay from '../components/MapDisplay';
-import { cn } from '../lib/utils';
 import SupportSection from '../components/SupportSection';
+import { DashboardSkeleton } from '../components/Skeleton';
 
 const CATEGORIES = [
-  { id: 'cleaning', name: 'Deep Cleaning', icon: Droplets, color: 'text-primary', bg: 'bg-natural-surface' },
+  { id: 'cleaning', name: 'House Cleaning', icon: Droplets, color: 'text-primary', bg: 'bg-natural-surface', price: 199 },
+  { id: 'childcare', name: 'Child Care (499)', icon: Baby, color: 'text-secondary', bg: 'bg-natural-surface', price: 499 },
+  { id: 'mopping', name: 'Mopping (49)', icon: Sparkles, color: 'text-blue-500', bg: 'bg-natural-surface', price: 49 },
+  { id: 'sweeping', name: 'Sweeping (59)', icon: Sparkles, color: 'text-amber-500', bg: 'bg-natural-surface', price: 59 },
+  { id: 'dusting', name: 'Dusting (39)', icon: Sparkles, color: 'text-emerald-500', bg: 'bg-natural-surface', price: 39 },
+  { id: 'fan', name: 'Fan Cleaning (29)', icon: Zap, color: 'text-yellow-600', bg: 'bg-natural-surface', price: 29 },
+  { id: 'wardrobe', name: 'Wardrobe Clean (39)', icon: ShoppingBag, color: 'text-purple-600', bg: 'bg-natural-surface', price: 39 },
+  { id: 'kitchen', name: 'Kitchen Clean (99)', icon: ChefHat, color: 'text-orange-600', bg: 'bg-natural-surface', price: 99 },
+  { id: 'cooler', name: 'Cooler Clean (79)', icon: Wind, color: 'text-cyan-600', bg: 'bg-natural-surface', price: 79 },
+  { id: 'door', name: 'Door Clean (29)', icon: Construction, color: 'text-stone-600', bg: 'bg-natural-surface', price: 29 },
+];
+
+const MOCK_POPULAR_SERVICES: Service[] = [
+  { id: 'c1', name: 'Full Home Cleaning', category: 'cleaning', basePrice: 2499, description: 'Complete deep cleaning of all rooms.', iconName: 'broom' },
+  { id: 'cc1', name: 'Day Care (4h)', category: 'childcare', basePrice: 1200, description: 'Verified child care for 4 hours.', iconName: 'baby' },
+  { id: 'r1', name: 'AC Unit Repair', category: 'repairs', basePrice: 499, description: 'General servicing and filter cleaning.', iconName: 'bolt' },
+  { id: 'p1', name: 'Pipe Leak Fix', category: 'plumbing', basePrice: 299, description: 'Standard fixing of minor pipe leaks.', iconName: 'plumber' },
 ];
 
 const HomeownerHome = () => {
@@ -23,50 +38,54 @@ const HomeownerHome = () => {
 
   useEffect(() => {
     const fetchPopular = async () => {
-      try {
-        const q = query(collection(db, 'services'), limit(4));
-        const snap = await getDocs(q);
-        setPopularServices(snap.docs.map(d => ({ id: d.id, ...d.data() } as Service)));
-      } catch (err) {
-        console.error(err);
-      }
+      const timeout = new Promise<Service[]>((resolve) => 
+        setTimeout(() => resolve(MOCK_POPULAR_SERVICES), 500)
+      );
+
+      const fetchTask = (async () => {
+        try {
+          const q = query(collection(db, 'services'), limit(4));
+          const querySnapshot = await getDocs(q);
+          const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Service[];
+          return data.length === 0 ? MOCK_POPULAR_SERVICES : data;
+        } catch (err) {
+          return MOCK_POPULAR_SERVICES;
+        }
+      })();
+
+      const results = await Promise.race([fetchTask, timeout]);
+      setPopularServices(results);
     };
     fetchPopular();
   }, []);
 
   useEffect(() => {
     if (!user) return;
+
     const q = query(
       collection(db, 'bookings'),
       where('customerId', '==', user.uid)
     );
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => {
-        const data = doc.data();
-        // Handle Firestore Timestamp
-        const createdAt = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt;
-        return { id: doc.id, ...data, createdAt } as Booking;
-      });
-      // Sort in memory
-      docs.sort((a, b) => {
-        const dateA = new Date(a.createdAt || 0).getTime();
-        const dateB = new Date(b.createdAt || 0).getTime();
-        return dateB - dateA;
-      });
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[];
+      // Sort in memory to avoid needing a composite index for where + orderBy
+      docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setBookings(docs);
       setLoading(false);
     }, (error) => {
-      console.error("Firestore Snapshot Error:", error);
+      console.error("Bookings subscription error:", error);
       setLoading(false);
     });
 
-    return unsub;
+    return () => unsubscribe();
   }, [user]);
 
   const filteredCategories = CATEGORIES.filter(cat => 
     cat.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (loading) return <DashboardSkeleton />;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
@@ -102,10 +121,16 @@ const HomeownerHome = () => {
               </div>
               <div>
                 <h3 className="font-bold text-natural-text text-2xl mb-2">{cat.name}</h3>
-                <p className="text-xs text-natural-muted uppercase tracking-widest font-black flex items-center gap-2">
-                  Book Now 
-                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </p>
+                <div className="flex items-center gap-4">
+                  <p className="text-xs text-natural-muted uppercase tracking-widest font-black flex items-center gap-2">
+                    Book Now 
+                    <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </p>
+                  <div className="h-4 w-px bg-natural-border" />
+                  <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">
+                    Starts ₹{cat.price}
+                  </p>
+                </div>
               </div>
             </Link>
           ))}
@@ -176,18 +201,18 @@ const HomeownerHome = () => {
                     <Clock className="text-primary w-8 h-8" />
                   </div>
                   <div>
-                    <h4 className="text-2xl font-bold text-natural-text">{(booking as any).serviceName || 'Service Request'}</h4>
+                    <h4 className="text-2xl font-bold text-natural-text">{booking.serviceName || 'Service Request'}</h4>
                     <div className="flex items-center gap-3 mt-2">
                        <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full font-bold uppercase tracking-widest">
                         {booking.status}
-                      </span>
+                       </span>
                     </div>
                   </div>
                 </div>
                 
                 <div className="text-right">
                   <p className="text-[10px] uppercase font-bold text-natural-muted mb-1">Booking ID</p>
-                  <p className="text-lg font-mono font-bold">#QS-{booking.id.slice(0, 5).toUpperCase()}</p>
+                  <p className="text-lg font-mono font-bold">#CE-{booking.id.slice(0, 5).toUpperCase()}</p>
                 </div>
               </Link>
             ))}
@@ -206,7 +231,7 @@ const HomeownerHome = () => {
       {/* Featured Packs */}
       <section className="bg-blue-600 rounded-[3rem] p-10 text-white relative overflow-hidden">
         <div className="relative z-10 max-w-md">
-          <h2 className="text-3xl font-bold mb-4 italic">Quick Seva Pro</h2>
+          <h2 className="text-3xl font-bold mb-4 italic">CleanEase Pro</h2>
           <p className="text-blue-100 mb-8 leading-relaxed">
             Get unlimited free visits and 20% off on all services with our Pro membership.
           </p>

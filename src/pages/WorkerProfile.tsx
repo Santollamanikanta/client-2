@@ -1,39 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { UserProfile, Booking } from '../types';
+import { doc, getDoc } from 'firebase/firestore';
+import { UserProfile, Review } from '../types';
 import { motion } from 'motion/react';
-import { Star, MapPin, ShieldCheck, Briefcase, Calendar, ChevronLeft, Award } from 'lucide-react';
+import { Star, MapPin, ShieldCheck, Briefcase, ChevronLeft, Award, User as UserIcon } from 'lucide-react';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 const WorkerProfile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [worker, setWorker] = useState<UserProfile | null>(null);
-  const [reviews, setReviews] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchWorker = async () => {
+    const fetchWorkerData = async () => {
       if (!id) return;
       try {
-        const docSnap = await getDoc(doc(db, 'users', id));
+        const docRef = doc(db, 'profiles', id);
+        const docSnap = await getDoc(docRef);
+        
         if (docSnap.exists()) {
-          setWorker(docSnap.data() as UserProfile);
+          const workerData = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
+          setWorker(workerData);
           
-          // Basic review simulation since we don't have a reviews collection yet
-          setReviews([
-            { id: '1', user: 'Ananya S.', rating: 5, comment: 'Very professional and on time.', date: '2 days ago' },
-            { id: '2', user: 'Rahul V.', rating: 4, comment: 'Great job with the cleaning.', date: '1 week ago' }
-          ]);
+          // Fetch real reviews
+          const reviewsQuery = query(
+            collection(db, 'reviews'),
+            where('providerId', '==', id)
+          );
+          const reviewsSnap = await getDocs(reviewsQuery);
+          const docs = reviewsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Review[];
+          docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setReviews(docs);
         }
       } catch (err) {
-        console.error(err);
+        console.error("Error fetching worker data:", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchWorker();
+    fetchWorkerData();
   }, [id]);
 
   if (loading) return (
@@ -53,7 +61,7 @@ const WorkerProfile = () => {
     <div className="max-w-4xl mx-auto px-4 py-12">
       <button 
         onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-natural-muted hover:text-natural-text transition-colors font-bold uppercase tracking-widest text-xs mb-10"
+        className="flex items-center gap-2 text-natural-muted hover:text-natural-text transition-colors font-bold uppercase tracking-widest text-xs mb-10 cursor-pointer"
       >
         <ChevronLeft className="w-4 h-4" />
         Back
@@ -115,11 +123,11 @@ const WorkerProfile = () => {
 
           {/* Experience Stats */}
           <div className="grid grid-cols-2 gap-6">
-            <div className="bg-primary p-8 rounded-[40px] text-white">
+            <div className="bg-primary p-8 rounded-[40px] text-white text-center">
               <div className="text-3xl font-serif font-bold mb-1">150+</div>
               <div className="text-[10px] font-bold uppercase tracking-widest opacity-80">Jobs Completed</div>
             </div>
-            <div className="bg-natural-text p-8 rounded-[40px] text-white">
+            <div className="bg-natural-text p-8 rounded-[40px] text-white text-center">
               <div className="text-3xl font-serif font-bold mb-1">98%</div>
               <div className="text-[10px] font-bold uppercase tracking-widest opacity-80">Success Rate</div>
             </div>
@@ -129,25 +137,31 @@ const WorkerProfile = () => {
           <section>
             <h2 className="text-xs font-bold uppercase tracking-widest text-natural-muted mb-8">Community Feedback</h2>
             <div className="space-y-6">
-              {reviews.map(review => (
+              {reviews.length > 0 ? reviews.map(review => (
                 <div key={review.id} className="bg-white p-8 rounded-3xl border border-natural-border">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-natural-surface rounded-full flex items-center justify-center font-bold text-[10px]">
-                        {review.user[0]}
+                      <div className="w-8 h-8 bg-natural-surface rounded-full flex items-center justify-center font-bold text-[10px] text-primary">
+                        <UserIcon className="w-4 h-4" />
                       </div>
-                      <span className="text-xs font-bold text-natural-text">{review.user}</span>
+                      <span className="text-xs font-bold text-natural-text">Verified Customer</span>
                     </div>
                     <div className="flex gap-1 text-secondary">
-                      {[...Array(review.rating)].map((_, i) => (
-                        <Star key={i} className="w-3 h-3 fill-current" />
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} className={`w-3 h-3 ${i < review.rating ? 'fill-current' : 'opacity-20'}`} />
                       ))}
                     </div>
                   </div>
-                  <p className="text-xs text-natural-muted font-medium italic mb-2">"{review.comment}"</p>
-                  <span className="text-[8px] font-bold uppercase tracking-widest text-natural-muted opacity-60">{review.date}</span>
+                  {review.comment && <p className="text-xs text-natural-muted font-medium italic mb-2">"{review.comment}"</p>}
+                  <span className="text-[8px] font-bold uppercase tracking-widest text-natural-muted opacity-60">
+                    {new Date(review.createdAt).toLocaleDateString()}
+                  </span>
                 </div>
-              ))}
+              )) : (
+                <div className="bg-natural-surface/50 p-8 rounded-3xl border border-dashed border-natural-border text-center">
+                  <p className="text-xs text-natural-muted font-bold uppercase tracking-widest">No reviews yet</p>
+                </div>
+              )}
             </div>
           </section>
         </div>

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, orderBy, limit, doc, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db } from '../lib/firebase';
+import { collection, query, orderBy, limit, onSnapshot, deleteDoc, doc, setDoc, writeBatch } from 'firebase/firestore';
 import { Booking, UserProfile, Service } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Users, ShoppingBag, TrendingUp, Search, Trash2, ExternalLink, Activity, CheckCircle2, AlertCircle, Map as MapIcon, Plus, X } from 'lucide-react';
+import { Shield, Users, ShoppingBag, TrendingUp, Search, Trash2, ExternalLink, Activity, CheckCircle2, AlertCircle, Plus, X, Map as MapIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { APIProvider, Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps';
 
 const AdminDashboard = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -29,25 +30,31 @@ const AdminDashboard = () => {
   const isMapsConfigured = Boolean(API_KEY) && API_KEY.startsWith('AIza') && API_KEY.length > 20;
 
   useEffect(() => {
-    const qBookings = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'), limit(50));
-    const unsubBookings = onSnapshot(qBookings, (snap) => {
-      setBookings(snap.docs.map(d => ({ id: d.id, ...d.data() } as Booking)));
-    }, err => handleFirestoreError(err, OperationType.LIST, 'bookings'));
-
-    const qUsers = query(collection(db, 'users'), limit(50));
-    const unsubUsers = onSnapshot(qUsers, (snap) => {
-      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() } as any)));
-    }, err => handleFirestoreError(err, OperationType.LIST, 'users'));
-
-    const unsubServices = onSnapshot(collection(db, 'services'), (snap) => {
-      setServices(snap.docs.map(d => ({ id: d.id, ...d.data() } as Service)));
+    // Bookings subscription
+    const bookingsQuery = query(collection(db, 'bookings'), limit(100));
+    const unsubscribeBookings = onSnapshot(bookingsQuery, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[];
+      docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setBookings(docs);
       setLoading(false);
-    }, err => handleFirestoreError(err, OperationType.LIST, 'services'));
+    });
+
+    // Users subscription
+    const usersQuery = query(collection(db, 'profiles'), limit(50));
+    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+      setUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
+    });
+
+    // Services subscription
+    const servicesQuery = query(collection(db, 'services'));
+    const unsubscribeServices = onSnapshot(servicesQuery, (snapshot) => {
+      setServices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Service[]);
+    });
 
     return () => {
-      unsubBookings();
-      unsubUsers();
-      unsubServices();
+      unsubscribeBookings();
+      unsubscribeUsers();
+      unsubscribeServices();
     };
   }, []);
 
@@ -56,17 +63,17 @@ const AdminDashboard = () => {
       try {
         await deleteDoc(doc(db, 'bookings', id));
       } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `bookings/${id}`);
+        console.error(err);
       }
     }
   };
 
-  const handleDeleteUser = async (id: string) => {
-    if (window.confirm('Permanently remove this user? This will not delete their Auth account, only their platform profile.')) {
+  const handleDeleteUser = async (uid: string) => {
+    if (window.confirm('Permanently remove this user profile?')) {
       try {
-        await deleteDoc(doc(db, 'users', id));
+        await deleteDoc(doc(db, 'profiles', uid));
       } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `users/${id}`);
+        console.error(err);
       }
     }
   };
@@ -76,7 +83,7 @@ const AdminDashboard = () => {
       try {
         await deleteDoc(doc(db, 'services', id));
       } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `services/${id}`);
+        console.error(err);
       }
     }
   };
@@ -87,41 +94,58 @@ const AdminDashboard = () => {
       await setDoc(doc(db, 'services', id), {
         ...newService,
         id,
-        createdAt: serverTimestamp()
-      } as any);
+        createdAt: new Date().toISOString()
+      });
       setShowAddService(false);
       setNewService({ name: '', category: 'cleaning', basePrice: 0, description: '', iconName: 'broom' });
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'services');
+      console.error(err);
     }
   };
 
   const handleSeedServices = async () => {
     const defaultServices = [
-      { name: 'Deep Home Cleaning', category: 'cleaning', basePrice: 1999, description: 'Deep cleaning for every corner of your home.', iconName: 'broom' },
-      { name: 'Electric Repair Package', category: 'repairs', basePrice: 599, description: 'Standard electrical safety audit and minor fixes.', iconName: 'bolt' },
-      { name: 'Standard Plumbing', category: 'plumbing', basePrice: 499, description: 'Fixing common household leaks and clogs.', iconName: 'plumber' },
-      { name: 'Tiffin Meal Plan', category: 'cooking', basePrice: 1200, description: 'Daily home-style meal prep service.', iconName: 'tiffin' },
-      { name: 'Specialized Dusting', category: 'dusting', basePrice: 399, description: 'Detailed dusting of blinds, shelves and furniture.', iconName: 'dust' },
-      { name: 'Background Verified Child Care', category: 'childcare', basePrice: 1500, description: 'Safe and monitored care for your little ones.', iconName: 'baby' },
-      { name: 'Full-time Care Taker', category: 'caretaker', basePrice: 2000, description: 'Dedicated personal assistance for seniors or patients.', iconName: 'heart' },
+      { name: 'House Cleaning Package', category: 'cleaning', basePrice: 199, description: 'Basic mopping, sweeping and dusting for your home.', iconName: 'broom' },
+      { name: 'Mopping Service', category: 'mopping', basePrice: 49, description: 'Professional wet mopping of all floors.', iconName: 'broom' },
+      { name: 'Sweeping Service', category: 'sweeping', basePrice: 59, description: 'Complete dry sweeping of the premises.', iconName: 'broom' },
+      { name: 'Dusting Service', category: 'dusting', basePrice: 39, description: 'Detailed dusting of furniture and electronics.', iconName: 'dust' },
+      { name: 'Fan Cleaning', category: 'fan', basePrice: 29, description: 'Ceiling and table fan deep cleaning.', iconName: 'bolt' },
+      { name: 'Wardrobe Cleaning', category: 'wardrobe', basePrice: 39, description: 'Internal organization and dusting of wardrobes.', iconName: 'dust' },
+      { name: 'Verified Child Care', category: 'childcare', basePrice: 499, description: 'Verified professional child care at your home.', iconName: 'baby' },
+      { name: 'Kitchen Cleaning', category: 'kitchen', basePrice: 99, description: 'Standard kitchen cleaning and organization.', iconName: 'broom' },
+      { name: 'Cooler Cleaning', category: 'cooler', basePrice: 79, description: 'Water change and internal pad cleaning.', iconName: 'bolt' },
+      { name: 'Door Cleaning', category: 'door', basePrice: 29, description: 'Polish and dust removal from all room doors.', iconName: 'broom' },
     ];
 
     try {
       setLoading(true);
-      for (const service of defaultServices) {
+      const batch = writeBatch(db);
+      defaultServices.forEach(service => {
         const id = service.name.toLowerCase().replace(/\s+/g, '-');
-        await setDoc(doc(db, 'services', id), {
+        const docRef = doc(db, 'services', id);
+        batch.set(docRef, {
           ...service,
           id,
-          createdAt: serverTimestamp()
+          createdAt: new Date().toISOString()
         });
-      }
+      });
+      await batch.commit();
       alert('Successfully seeded service catalog');
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'services');
+      console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateStatus = async (bookingId: string, status: Booking['status']) => {
+    try {
+      await setDoc(doc(db, 'bookings', bookingId), { 
+        status,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -198,6 +222,55 @@ const AdminDashboard = () => {
         </div>
       </div>
 
+      {/* Live Provider Map */}
+      {isMapsConfigured && (
+        <div className="mb-16">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-natural-muted flex items-center gap-2">
+              <MapIcon className="w-4 h-4 text-emerald-500" />
+              Active Provider Fleet
+            </h2>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="text-[10px] font-bold text-natural-muted uppercase">Live Updates</span>
+            </div>
+          </div>
+          <div className="bg-white rounded-[40px] border border-natural-border shadow-soft h-[500px] overflow-hidden relative">
+            <APIProvider apiKey={API_KEY} version="weekly">
+              <Map
+                center={{ lat: 17.3850, lng: 78.4867 }}
+                zoom={12}
+                mapId="ADMIN_PROVIDER_TRACKER"
+                style={{ width: '100%', height: '100%' }}
+              >
+                {users.filter(u => u.role === 'provider' && u.location).map(provider => (
+                  <AdvancedMarker 
+                    key={provider.uid} 
+                    position={provider.location!}
+                  >
+                    <div className="relative group cursor-pointer">
+                      <div className={`w-10 h-10 rounded-xl border-2 ${provider.isOnline ? 'border-emerald-500' : 'border-gray-300'} bg-white overflow-hidden shadow-lg transition-transform hover:scale-125`}>
+                        <img 
+                          src={provider.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${provider.displayName}`} 
+                          alt="Pro" 
+                          className={`w-full h-full object-cover ${provider.isOnline ? '' : 'grayscale'}`}
+                        />
+                      </div>
+                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-white px-2 py-1 rounded-lg shadow-md border border-natural-border whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                         <p className="text-[8px] font-bold text-natural-text uppercase">{provider.displayName}</p>
+                         <p className={`text-[6px] font-bold uppercase ${provider.isOnline ? 'text-emerald-500' : 'text-gray-400'}`}>
+                           {provider.isOnline ? 'Online' : 'Offline'}
+                         </p>
+                      </div>
+                    </div>
+                  </AdvancedMarker>
+                ))}
+              </Map>
+            </APIProvider>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         {/* Recent Transactions */}
         <div className="lg:col-span-2">
@@ -225,17 +298,19 @@ const AdminDashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-natural-border">
-                {bookings.map((booking) => (
+                {bookings.filter(b => b.serviceName?.toLowerCase().includes(searchTerm.toLowerCase())).map((booking) => (
                   <tr key={booking.id} className="hover:bg-natural-surface/50 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-bold text-natural-text text-sm">{(booking as any).serviceName}</div>
+                      <div className="font-bold text-natural-text text-sm">{booking.serviceName}</div>
                       <div className="text-[10px] text-natural-muted font-mono">{booking.id}</div>
                     </td>
                     <td className="px-6 py-4 font-bold text-natural-text text-sm">₹{booking.totalPrice}</td>
                     <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
                         booking.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                        booking.status === 'pending-approval' ? 'bg-purple-100 text-purple-700' :
                         booking.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                        booking.status === 'rejected' ? 'bg-red-100 text-red-700' :
                         'bg-blue-100 text-blue-700'
                       }`}>
                         {booking.status}
@@ -243,6 +318,24 @@ const AdminDashboard = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
+                        {booking.status === 'pending-approval' && (
+                          <>
+                            <button 
+                              onClick={() => handleUpdateStatus(booking.id, 'pending')}
+                              className="p-2 bg-emerald-50 text-emerald-600 rounded-lg shadow-sm border border-emerald-100 hover:bg-emerald-100 transition-colors cursor-pointer"
+                              title="Approve Booking"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleUpdateStatus(booking.id, 'rejected')}
+                              className="p-2 bg-red-50 text-red-600 rounded-lg shadow-sm border border-red-100 hover:bg-red-100 transition-colors cursor-pointer"
+                              title="Reject Booking"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                         <Link to={`/booking/${booking.id}`} className="p-2 hover:bg-white rounded-lg text-primary shadow-sm border border-transparent hover:border-natural-border">
                           <ExternalLink className="w-4 h-4" />
                         </Link>
@@ -266,7 +359,7 @@ const AdminDashboard = () => {
           <h2 className="text-xs font-bold uppercase tracking-widest text-natural-muted mb-8">User Directory</h2>
           <div className="space-y-4">
             {users.map((user) => (
-              <div key={(user as any).id || user.uid} className="bg-white p-6 rounded-2xl border border-natural-border flex items-center justify-between group">
+              <div key={user.uid} className="bg-white p-6 rounded-2xl border border-natural-border flex items-center justify-between group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 bg-natural-surface rounded-xl flex items-center justify-center font-bold text-primary">
                     {user.displayName?.[0] || 'U'}
@@ -278,7 +371,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="flex items-center gap-3">
                   <button 
-                    onClick={() => handleDeleteUser((user as any).id || user.uid)}
+                    onClick={() => handleDeleteUser(user.uid)}
                     className="p-2 opacity-0 group-hover:opacity-100 hover:bg-red-50 text-red-500 rounded-lg transition-all cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -398,6 +491,8 @@ const AdminDashboard = () => {
                       <option value="repairs">Electric Repairs</option>
                       <option value="plumbing">Plumbing Works</option>
                       <option value="cooking">Cooking & Tiffin</option>
+                      <option value="childcare">Child Care</option>
+                      <option value="caretaker">Caretaker</option>
                     </select>
                   </div>
                   <div>
